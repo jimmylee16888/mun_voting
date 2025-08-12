@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'mock_api.dart';
 
 class DelegateListEditor extends StatefulWidget {
   const DelegateListEditor({super.key});
@@ -107,9 +108,7 @@ class _DelegateListEditorState extends State<DelegateListEditor> {
   }
 
   Future<void> _saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // 將 controller 內容同步回 lists
+    // 把 controller 內容同步回 lists
     for (var i = 0; i < lists.length; i++) {
       final ctrls = _delegateNameCtrls[i] ?? [];
       final delegates = (lists[i]['delegates'] as List)
@@ -119,14 +118,20 @@ class _DelegateListEditorState extends State<DelegateListEditor> {
       }
     }
 
-    await prefs.setString('delegate_json', jsonEncode({'list': lists}));
-    await prefs.setInt('selected_list_index', selectedListIndex);
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('✅ 已儲存代表名單')));
-      Navigator.pop(context);
+    try {
+      await MockApi.saveDelegateList(lists, selectedListIndex);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('✅ 名單已送出後端（Mock）')));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('❌ 儲存失敗：$e')));
+      }
     }
   }
 

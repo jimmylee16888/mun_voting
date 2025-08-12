@@ -7,6 +7,7 @@ class VotingPage extends StatefulWidget {
   final String username; // 帳號（account）
   final String selfDelegateName; // 此帳號對應代表名稱
   final List<String> delegateList;
+  final String listName; // ★ 用於組合 key
   final String sessionId; // 分隔不同 list 的會話 ID
   final bool isAdmin; // 是否為管理員
 
@@ -15,6 +16,7 @@ class VotingPage extends StatefulWidget {
     required this.username,
     required this.selfDelegateName,
     required this.delegateList,
+    required this.listName,
     required this.sessionId,
     required this.isAdmin,
   });
@@ -24,10 +26,11 @@ class VotingPage extends StatefulWidget {
 }
 
 class _VotingPageState extends State<VotingPage> {
-  Map<String, String> votes = {};
+  Map<String, String> votes = {}; // key = "${listName}::${delegateName}"
   final List<String> options = ['Yes', 'No', 'Abstain'];
 
   String get _storeKey => 'votes_data_${widget.sessionId}';
+  String _k(String name) => '${widget.listName}::${name.trim()}';
 
   @override
   void initState() {
@@ -77,7 +80,7 @@ class _VotingPageState extends State<VotingPage> {
 
   Future<void> castVote(String delegateName, String vote) async {
     setState(() {
-      votes[delegateName] = vote;
+      votes[_k(delegateName)] = vote;
     });
     await saveVotes();
     await _postRecord(action: 'vote', target: delegateName, value: vote);
@@ -85,7 +88,7 @@ class _VotingPageState extends State<VotingPage> {
 
   Future<void> clearVote(String delegateName) async {
     setState(() {
-      votes.remove(delegateName);
+      votes.remove(_k(delegateName));
     });
     await saveVotes();
     await _postRecord(action: 'vote_clear', target: delegateName, value: '');
@@ -94,7 +97,7 @@ class _VotingPageState extends State<VotingPage> {
   Map<String, int> getVoteCount() {
     final Map<String, int> count = {'Yes': 0, 'No': 0, 'Abstain': 0};
     for (var delegate in widget.delegateList) {
-      final v = votes[delegate];
+      final v = votes[_k(delegate)];
       if (v != null && count.containsKey(v)) {
         count[v] = count[v]! + 1;
       }
@@ -102,7 +105,6 @@ class _VotingPageState extends State<VotingPage> {
     return count;
   }
 
-  // 卡片底色
   Color voteTileColor(String? vote) {
     switch (vote) {
       case 'Yes':
@@ -116,7 +118,6 @@ class _VotingPageState extends State<VotingPage> {
     }
   }
 
-  // 按鈕選中顏色
   Color selectedBtnColor(String vote) {
     switch (vote) {
       case 'Yes':
@@ -149,14 +150,13 @@ class _VotingPageState extends State<VotingPage> {
                 ),
               ),
               const SizedBox(height: 12),
-
               const Text("請進行投票：", style: TextStyle(fontSize: 16)),
               const SizedBox(height: 10),
 
               // 自己的投票三鍵
               Builder(
                 builder: (_) {
-                  final current = votes[selfDelegate];
+                  final current = votes[_k(selfDelegate)];
                   return Row(
                     children: options.map((opt) {
                       final isSelected = current == opt;
@@ -171,7 +171,7 @@ class _VotingPageState extends State<VotingPage> {
                           child: InkWell(
                             onTap: () async {
                               if (isSelected) {
-                                await clearVote(selfDelegate); // 取消選擇 → 寫後端
+                                await clearVote(selfDelegate);
                               } else {
                                 await castVote(selfDelegate, opt);
                               }
@@ -223,9 +223,8 @@ class _VotingPageState extends State<VotingPage> {
               ),
               const SizedBox(height: 10),
 
-              // 列表 + 管理員可調整
               ...widget.delegateList.map((delegate) {
-                final vote = votes[delegate];
+                final vote = votes[_k(delegate)];
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   decoration: BoxDecoration(
@@ -266,10 +265,7 @@ class _VotingPageState extends State<VotingPage> {
                                   .toList(),
                               onChanged: (newVote) async {
                                 if (newVote != null) {
-                                  await castVote(
-                                    delegate,
-                                    newVote,
-                                  ); // 管理員代操作 → 寫後端
+                                  await castVote(delegate, newVote);
                                 }
                               },
                             ),

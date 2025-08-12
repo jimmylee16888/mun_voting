@@ -83,4 +83,23 @@ class MockApi {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_logKey(sessionId));
   }
+
+  /// ✅ 模擬存代表名單到後端
+  static Future<void> saveDelegateList(
+    List<Map<String, dynamic>> lists,
+    int selectedListIndex,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('delegate_json', jsonEncode({'list': lists}));
+    await prefs.setInt('selected_list_index', selectedListIndex);
+
+    // === 將來接真後端時換成 http.post(...) ===
+    // await http.post(Uri.parse('https://your.api/delegateList'),
+    //   headers: {'Content-Type': 'application/json'},
+    //   body: jsonEncode({
+    //     'lists': lists,
+    //     'selected_index': selectedListIndex,
+    //   }),
+    // );
+  }
 }

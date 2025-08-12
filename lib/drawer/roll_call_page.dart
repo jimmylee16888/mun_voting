@@ -5,9 +5,9 @@ import '../mock_api.dart';
 
 class RollCallPage extends StatefulWidget {
   final String username; // 帳號（account）
-  final String selfDelegateName; // 由 HomePage 傳入此帳號對應的代表名稱
+  final String selfDelegateName; // 此帳號對應代表名稱
   final List<String> delegateList;
-  final String listName;
+  final String listName; // ★ 用於組合 key
   final String sessionId; // 分隔不同 list 的會話 ID
   final bool isAdmin; // 是否為管理員
 
@@ -26,10 +26,12 @@ class RollCallPage extends StatefulWidget {
 }
 
 class _RollCallPageState extends State<RollCallPage> {
-  Map<String, String> attendance = {}; // key = 代表名稱, value = 狀態
+  // 內層 key ＝ "${listName}::${delegateName}"
+  Map<String, String> attendance = {};
   final List<String> statuses = ['Present', 'Present and Voting', 'Absent'];
 
   String get _storeKey => 'attendance_data_${widget.sessionId}';
+  String _k(String name) => '${widget.listName}::${name.trim()}';
 
   @override
   void initState() {
@@ -79,7 +81,7 @@ class _RollCallPageState extends State<RollCallPage> {
 
   Future<void> setStatus(String delegateName, String status) async {
     setState(() {
-      attendance[delegateName] = status;
+      attendance[_k(delegateName)] = status;
     });
     await saveAttendance();
     await _postRecord(
@@ -91,7 +93,7 @@ class _RollCallPageState extends State<RollCallPage> {
 
   Future<void> clearStatus(String delegateName) async {
     setState(() {
-      attendance.remove(delegateName);
+      attendance.remove(_k(delegateName));
     });
     await saveAttendance();
     await _postRecord(
@@ -103,14 +105,14 @@ class _RollCallPageState extends State<RollCallPage> {
 
   int getPresentCount() {
     return widget.delegateList.where((d) {
-      final s = attendance[d];
+      final s = attendance[_k(d)];
       return s == 'Present' || s == 'Present and Voting';
     }).length;
   }
 
   int getAbsentCount() {
     return widget.delegateList.where((d) {
-      final s = attendance[d];
+      final s = attendance[_k(d)];
       return s == null || s == 'Absent';
     }).length;
   }
@@ -136,9 +138,8 @@ class _RollCallPageState extends State<RollCallPage> {
             // 自己的三鍵選擇
             Builder(
               builder: (_) {
-                final current = attendance[selfDelegate];
-
-                final Set<String> selectedSet =
+                final current = attendance[_k(selfDelegate)];
+                final selectedSet =
                     (current != null && statuses.contains(current))
                     ? {current}
                     : <String>{};
@@ -172,7 +173,7 @@ class _RollCallPageState extends State<RollCallPage> {
                         child: InkWell(
                           onTap: () async {
                             if (isSelected) {
-                              await clearStatus(selfDelegate); // 清空也寫後端
+                              await clearStatus(selfDelegate);
                             } else {
                               await setStatus(selfDelegate, status);
                             }
@@ -222,7 +223,7 @@ class _RollCallPageState extends State<RollCallPage> {
 
             // 列表 + 管理員可調整
             ...widget.delegateList.map((delegate) {
-              final status = attendance[delegate] ?? '尚未選擇';
+              final status = attendance[_k(delegate)] ?? '尚未選擇';
               final color = _statusColor(status);
 
               return Container(
@@ -235,8 +236,8 @@ class _RollCallPageState extends State<RollCallPage> {
                   title: Text(delegate),
                   trailing: widget.isAdmin
                       ? DropdownButton<String>(
-                          value: statuses.contains(attendance[delegate])
-                              ? attendance[delegate]
+                          value: statuses.contains(attendance[_k(delegate)])
+                              ? attendance[_k(delegate)]
                               : null,
                           hint: const Text('尚未選擇'),
                           items: statuses
@@ -247,10 +248,7 @@ class _RollCallPageState extends State<RollCallPage> {
                               .toList(),
                           onChanged: (newStatus) async {
                             if (newStatus != null) {
-                              await setStatus(
-                                delegate,
-                                newStatus,
-                              ); // 管理員代操作 → 寫後端
+                              await setStatus(delegate, newStatus);
                             }
                           },
                         )
@@ -312,11 +310,19 @@ class _RollCallPageState extends State<RollCallPage> {
                   children: [
                     _thresholdChip(
                       "1/2",
-                      simpleMajority,
+                      (present / 2).ceil(),
                       Colors.blueGrey.shade100,
                     ),
-                    _thresholdChip("2/3", twoThirds, Colors.blue.shade100),
-                    _thresholdChip("1/8", oneEighth, Colors.indigo.shade100),
+                    _thresholdChip(
+                      "2/3",
+                      (present * 2 / 3).ceil(),
+                      Colors.blue.shade100,
+                    ),
+                    _thresholdChip(
+                      "1/8",
+                      (present / 8).ceil(),
+                      Colors.indigo.shade100,
+                    ),
                   ],
                 ),
               ],
